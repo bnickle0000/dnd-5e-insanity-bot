@@ -7,6 +7,25 @@ json documentation: https://docs.python.org/3/library/json.html
 """
 
 """
+Singleton representing the DM's Discord ID
+"""
+class DMID(object):
+    _singleton = None
+    value = None
+
+    def __new__(cls, value):
+        if not cls._singleton:
+            cls._singleton = super(DMID, cls).__new__(cls)
+            cls.value = value
+        return cls._singleton
+
+# dmid1 = DMID("id-01")
+# # dmid1.shared = "id-01"
+# print(dmid1.value)
+# dmid1 = DMID("id-02")
+# print(dmid1.value)
+
+"""
 Represents the D&D player. Allows for a player to be in many servers
 """
 class Player:
@@ -126,7 +145,7 @@ class Server:
                 ):
         self.sid = sid
         self.players = players
-        self.dmid = dmid
+        self.dmid = DMID(dmid)
         # Constants for in-class dictionary actions
         self.SID = "sid"
         self.PLAY = "players"
@@ -134,13 +153,22 @@ class Server:
     def addPlayer(self, player:Player):
         pid = player.getPid()
         self.players[pid] = player
-    def setDMID(self, dmid:str):
-        self.dmid = dmid
     def getDMID(self):
-        return self.dmid
+        return self.dmid.value
+    def cureEffect(self,pid:str,effect:str):
+        player = self.players[pid]
+        player.cureEffect(effect)
+    def decrementEffects(self,
+                         duration:float # Number of hours to decrement by
+                         ):
+        for pid in self.players.keys():
+            curr = self.player[pid]
+            curr.decrementEffects(duration)
+        pass
     def toJson(self):
         result = dict()
         result[self.SID] = self.sid
+        result[self.DMID] = self.dmid.value
         result[self.PLAY] = dict()
         for pid in self.players.keys():
             result[self.PLAY][pid] = self.players[pid].toJson()
