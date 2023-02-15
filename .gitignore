@@ -1,3 +1,4 @@
 *.json
 data/*
 __pycache__/*auth.py
+auth.py
