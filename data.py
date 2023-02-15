@@ -34,15 +34,15 @@ class Player:
                  ):
         self.setPid(pid)
         # self.effectTypes = "short long indef perm".split(" ")
-        self.short = short
-        self.long = long
-        self.indef = indef
-        self.perm = perm
+        # self.short = short
+        # self.long = long
+        # self.indef = indef
+        # self.perm = perm
         self.allEffects = dict()
-        self.allEffects["short"] = self.short
-        self.allEffects["long"] = self.long
-        self.allEffects["indef"] = self.indef
-        self.allEffects["perm"] = self.perm
+        self.allEffects["short"] = short
+        self.allEffects["long"] = long
+        self.allEffects["indef"] = indef
+        self.allEffects["perm"] = perm
         self.NODECREMENTS = ("indef", "perm")
         # Constants for in-class dictionary actions
         self.ABBR = "abbrev."
@@ -117,6 +117,11 @@ class Player:
                     curr[self.HOUR] -= duration
                     if curr[self.HOUR] <= 0.0:
                         curr[self.STAT] = config.effectStatus[config.E_ENDED]
+    def hasEffects(self):
+        count = 0
+        for effectType in self.allEffects.keys():
+            count += len(self.allEffects[effectType].keys())
+        return count > 0
     def listEffects(self, onlyActive:bool=False):
         result = dict()
         for effectType in self.allEffects.keys():
@@ -129,34 +134,7 @@ class Player:
                 else:
                     result[curr[self.DESC]] = curr
         return result
-    # Return a human-readable list of effects the player is experiencing
-    # Should look something like
-    """
-    {Player} has the effect:
-    > {description}
-    > Type: {type}
-    > Status: {status}
-    > Max duration: {duration}
-    > Hours remaining: {hoursRemaining}
-    """
-    def returnPrintable(self, name):
-        lines = []
-        fx = []
-        for effectType in self.allEffects.keys():
-            effectSet = self.allEffects[effectType]
-            fx = fx + [effectSet[key] for key in effectSet.keys()]
-        for effect in fx:
-            message = "\n".join([f"{name} has the following effect:",
-                                 f"--------------------------------",
-                                 f"> {effect[self.DESC]}",
-                                 f"--------------------------------",
-                                 f"> Type: {effect[self.TYPE]}",
-                                 f"> Status: {effect[self.STAT]}",
-                                 f"> Max duration: {effect[self.DURA]}",
-                                 f"> Hours remaining: {effect[self.HOUR]}"])
-            lines.append(message)
-
-        return lines
+    
     def toJson(self):
         result = self.allEffects
         result[self.PID] = self.pid
@@ -166,13 +144,12 @@ class Player:
 Represents the whole ass discord server.
 """
 class Server:
-    def __init__(self, sid:str,
-                 players:dict={},
-                 dmid:str=""
-                ):
+    def __init__(self, sid:str, players:dict={}, dmid:str=""):
         self.sid = sid
         self.players = players
-        self.dmid = DMID(dmid)
+        self.__dmid = None
+        if dmid != "":
+            self.setDMID(dmid)
         # Constants for in-class dictionary actions
         self.SID = "sid"
         self.PLAY = "players"
@@ -181,17 +158,25 @@ class Server:
         pid = player.getPid()
         self.players[pid] = player
     def getDMID(self) -> str:
-        return self.dmid.getValue()
+        return self.__dmid.getValue()
+    def setDMID(self, value:str) -> bool:
+        if value != "" and self.__dmid == None:
+            self.__dmid = DMID(value)
+            return True
+        return False
     def cureEffect(self,pid:str,effect:str):
         player = self.players[pid]
         player.cureEffect(effect)
-    def decrementEffects(self,
-                         duration:float # Number of hours to decrement by
-                         ):
+    def decrementPlayerEffects(self, duration:float, minutes:bool=False):
+        """
+        duration: Number of hours to decrement by
+        minutes:  If True, decrements by minutes instead
+        """
+        if minutes:
+            duration /= 60
         for pid in self.players.keys():
-            curr = self.player[pid]
+            curr = self.players[pid]
             curr.decrementEffects(duration)
-        pass
     def toJson(self):
         result = dict()
         result[self.SID] = self.sid
@@ -201,7 +186,7 @@ class Server:
         but then the one directly below it 
         """
         # result[self.DMID] = self.getDMID() # DOESN'T WORK?
-        result[self.DMID] = self.dmid.getValue().getValue() # DOES WORK?! HOW?!
+        result[self.DMID] = self.__dmid.getValue().getValue() # DOES WORK?! HOW?!
         
         result[self.PLAY] = dict()
         for pid in self.players.keys():
@@ -209,7 +194,8 @@ class Server:
         print(result)
         return result
 
-"""daeolt = Player("daeolt")
+"""
+daeolt = Player("daeolt")
 daeolt.addEffect("short", "You laugh uncontrollably", 8.0)
 daeolt.addEffect("short", "You laugh uncontrollably", 8.0)
 daeolt.addEffect("short", "You laugh uncontrollably", 13.13)
@@ -217,6 +203,8 @@ daeolt.addEffect("long", "You sneeze uncontrollably", 16.0)
 daeolt.addEffect("indef", "You cough uncontrollably", 24.0)
 daeolt.addEffect("perm", "You shart uncontrollably", 32.0)
 daeolt.decrementEffects(32.0)
+for printable in daeolt.returnPrintable("daeolt"):
+    print(printable)
 # print(daeolt.listEffects())
 
 debug = Server("0", dict(), "brad")
@@ -227,7 +215,8 @@ data[debug.sid] = debug
 # data["server"] = dict()
 # data["server"]["sid"] = 0
 # data["server"]["players"] = dict()
-# data["server"]["players"]["daeolt"] = daeolt.toJson()"""
+# data["server"]["players"]["daeolt"] = daeolt.toJson()
+"""
 
 """data = {
     "server":{
@@ -292,7 +281,7 @@ def convertFilesToObjects(files:list):
                 players[key] = curr
             # files[i] = data.Server(files[i]["sid"], players, files[i]["dmid"])
             sid = files[i]["sid"]
-            print(f"DMID: {files[i]['dmid']}")
+            print(f"Server: {sid} DMID: {files[i]['dmid']}")
             servers[sid] = Server(files[i]["sid"], players, DMID(files[i]["dmid"]))
         except Exception as e:
             print(e)
