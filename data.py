@@ -60,39 +60,54 @@ class Player:
         return self.pid
     def addEffect(self,
                   effectType:str, # Type of effect duration (short, long, etc)
-                  description:str, # Description of the effect
+                  effect:dict, # Resembles {"id":"type-##", "description":"lorem ipsum ..."}
                   duration:float # Duration of effect in hours
-                  ):
+                  ) -> int: # Returns 0 if no errors, 1 if error(s)
+        # Return if an invalid effect type was given
         if effectType not in self.allEffects.keys():
             return 1
-        type = self.allEffects[effectType]
+        # Otherwise, grab the dict for that effect type
+        effectSet = self.allEffects[effectType]
 
-        """Uniquely identifying effects by their description
-        This will update duration and hoursRemaining
+        """
+        Used to uniquely identify effects by their description;
+        Now uniquely identifying effects by their key in the insanities
+        JSON file.
+
+        If the key is already in the effect set, then update the effect
+        with the larger duration & time remaining. The effect will also
+        be turned active again, automatically.
         """
         largerDuration = duration
         largerRemaining = duration
-        if description in type.keys():
-            if type[description][self.DURA] > largerDuration:
-                largerDuration = type[self.DURA]
+        if effect['id'] in effectSet.keys():
+            if effectSet[effect['id']][self.DURA] > largerDuration:
+                largerDuration = effectSet[self.DURA]
             
-            if type[description][self.HOUR] > largerRemaining:
-                largerRemaining = type[self.HOUR]
+            if effectSet[effect['id']][self.HOUR] > largerRemaining:
+                largerRemaining = effectSet[self.HOUR]
         else:
-            type[description] = dict()
+            effectSet[effect['id']] = dict()
+        
+        """
+        TODO: re-examine whether this try/except block is needed.
+        Haven't used abbrev. so far!
+        """
         try:
-            type[description][self.ABBR] = description[:24]
+            effectSet[effect['id']][self.ABBR] = effect['description'][:24] + "..."
         except IndexError as ie:
             print(ie)
-            type[description][self.ABBR] = ""
+            effectSet[effect['id']][self.ABBR] = ""
         except Exception as e:
             print(e)
-            type[description][self.ABBR] = "ERROR"
-        type[description][self.DESC] = description
-        type[description][self.DURA] = largerDuration
-        type[description][self.HOUR] = largerRemaining
-        type[description][self.STAT] = config.effectStatus[config.E_ACTIVE]
-        type[description][self.TYPE] = effectType
+            effectSet[effect['id']][self.ABBR] = "ERROR"
+        
+        # Update remaining fields for the insanity
+        effectSet[effect['id']][self.DESC] = effect['description']
+        effectSet[effect['id']][self.DURA] = largerDuration
+        effectSet[effect['id']][self.HOUR] = largerRemaining
+        effectSet[effect['id']][self.STAT] = config.effectStatus[config.E_ACTIVE]
+        effectSet[effect['id']][self.TYPE] = effectType
         return 0
     def cureEffect(self,
                    description:str # May not uniquely id effect instances, but good enough
