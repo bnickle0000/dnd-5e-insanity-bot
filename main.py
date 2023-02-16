@@ -89,9 +89,14 @@ async def addplayer(ctx, *message):
 @bot.command()
 async def addeffect(ctx, *message):
     try:
-        effectType = ctx.message.content.split(" ")[1]
+        args = ctx.message.content.split(" ")
+        effectType = args[1]
     except IndexError as e:
         effectType = "short"
+    except Exception as e:
+        print(f"Exception while setting effect type ('{effectType}'):")
+        print(f"\t{ctx.message.content}")
+        print(e)
 
     effectSides = {
         "short":10,
@@ -115,26 +120,31 @@ async def addeffect(ctx, *message):
     }
 
     for p in ctx.message.mentions:
-        print(p)
-
+        print(f"Getting random effect for player {p.id}...")
         # Pull random insanity effect to give to the player
         effect = pullIsanity(effectType)
-
+        print(f"Got effect {effect} for player {p.id}.")
         duration = 0.0
+
+        player = getPlayerFromServer(str(p.id), str(ctx.guild.id), bot.servers)
         try:
-            player = getPlayerFromServer(str(p.id), str(ctx.guild.id), bot.servers)
             if player != None:
-                print(f"Adding effect {effect['id']} to {player.pid}")
+                print(f"Configuring effect {effect['id']} for {player.pid}...")
                 sides = effectSides[effectType]
                 mod = effectMods[effectType]
                 multiplier = effectMultipliers[effectType]
                 duration = d(sides, mod) * multiplier
 
-                # TODO: pull random effects from csv lol
+                print(f"Adding effect {effect['id']} to {player.pid}...")
                 player.addEffect(effectType, effect, duration)
+
+                print(f"Fetching user {p.id}...")
                 mentionable = await bot.fetch_user(p.id)
+                
+                print(f"Player {player.pid} now has effect {effect['id']}")
                 await ctx.send(f"{mentionable.mention} now has effect `{effect['id']}`: ```{effect['description']}``` for `{duration}` hours!")
         except Exception as e:
+            print("Exception while applying insanity:")
             print(e)
   
 # Helper    
@@ -150,18 +160,19 @@ def pullIsanity(effectType:str) -> dict:
         # If it's permanent insanity, exclude short-term insanities. Not fun gameplay.
         # Anything else is fair game.
         if effectType.lower() == "perm":
-            possibilities = [p for p in possibilities if "short" not in p]
+            possibilities = [bot.insanities[p] for p in possibilities if "short" not in p]
         
         # If effectType == short, then only keys containing "short" or "any" are included
         # Same logic for "long", "indef"
         else:
-            possibilities = [p for p in possibilities if config.ANYPREFIX in p or effectType.lower() in p]
+            possibilities = [bot.insanities[p] for p in possibilities if config.ANYPREFIX in p or effectType.lower() in p]
     except Exception as e:
         print("Exception while pulling insanity:")
         print(e)
     else:
-        if len(possibilities) > 0:
-            return possibilities[d(len(possibilities), -1)]
+        length = len(possibilities)
+        if length > 0:
+            return possibilities[d(length, -1)]
         return {"id":None, "description":None}
   
 # Helper   
@@ -216,35 +227,58 @@ def getServer(id:str, servers:dict) -> data.Server:
         return None
     return result
 
+# Syntax: -listeffects [OPTIONAL:-a] [player1] [player2] ... [playerN]
 @bot.command()
-async def listEffects(ctx, *message):
+async def listeffects(ctx, *message):
+    all = False
+    try:
+        args = ctx.message.content.split(" ")
+        all = args[1].lower() == "-a"
+    except IndexError as e:
+        print(f"IndexError while setting 'all':")
+        print(f"\t{ctx.message.content}")
+        print(e)
+    except Exception as e:
+        print(f"Exception while setting 'all':")
+        print(f"\t{ctx.message.content}")
+        print(e)
+
     try:
         print(ctx)
         print(ctx.message)
         print(ctx.message.content.split(" "))
         print(ctx.message.mentions)
         # for p in ctx.message.content.split(" ")[1:]:
+        print("Servers:", bot.servers.keys())
         for p in ctx.message.mentions:
+            print(f"Listing effects for player {p.id}...")
+            # player = await getPlayerFromServer(p, "0", bot.servers)
+            # TODO: update to accommodate using actual discord IDs, server IDs
+            player = getPlayerFromServer(str(p.id), str(ctx.guild.id), bot.servers)
             try:
-                print("Servers:", bot.servers.keys())
-                print("Arg:", p)
-                # player = await getPlayerFromServer(p, "0", bot.servers)
-                # TODO: update to accommodate using actual discord IDs, server IDs
-                player = getPlayerFromServer(str(p.id), str(ctx.guild.id), bot.servers)
+                print(f"Fetching discord usesr {p.id}...")
                 curr = await bot.fetch_user(p.id)
-                if player != None:
-                    print(f"Player: {player} ({player.pid}) {len(player.allEffects.keys())} effects")
-                    # effects = await printPlayerEffects(player)
-                    effects = printPlayerEffects(player, curr.mention)
-                    print("Effects:", effects)
-                    for effect in effects:
-                        await ctx.send(f"""{effect}
-                        
-                        """)
-                else:
-                    await ctx.send(f"Foundn't player {curr.mention} in server `{ctx.guild.name}`")
             except Exception as e:
+                print(f"Exception while fetching discord user from id {p.id}:")
                 print(e)
+            else:
+                try:
+                    if player != None:
+                        print(f"Player: {player} ({player.pid}) {len(player.allEffects.keys())} effects")
+                        # effects = await printPlayerEffects(player)
+                        effects = printPlayerEffects(player, curr.mention, all)
+                        print("Effects:", effects)
+                        for effect in effects:
+                            try:
+                                await ctx.send(f"{effect}")
+                            except Exception as e:
+                                print(f"Exception while sending {player.pid}'s effect {effect[player.EID]}:")
+                                print(e)
+                    else:
+                        await ctx.send(f"Foundn't player {curr.mention} in server `{ctx.guild.name}`")
+                except Exception as e:
+                    print(f"Exception while formatting & sending player {player.pid}'s effects:")
+                    print(e)
     except Exception as e:
         print(e)
         await ctx.send(f"Exception raised see terminal")
@@ -253,7 +287,7 @@ async def listEffects(ctx, *message):
 def getPlayerFromServer(pid:str, sid:str, servers:dict()) -> data.Player:
     # TODO: update to accommodate using actual discord IDs ?
     try:
-        print(f"Gathering player '{pid}' from server '{sid}'...")
+        print(f"Getting player '{pid}' from server '{sid}'...")
         server = servers[sid]
         player = server.players[pid]
         print(f"Found player '{pid}' in server '{sid}'!")
@@ -266,7 +300,7 @@ def getPlayerFromServer(pid:str, sid:str, servers:dict()) -> data.Player:
     return None
 
 # Helper 
-def printPlayerEffects(player:data.Player, mention) -> list:
+def printPlayerEffects(player:data.Player, mention, all:bool=False) -> list:
     # Return a human-readable list of effects the player is experiencing,
     # resembling something like the following:
     # {Player} has the effect:
@@ -297,13 +331,15 @@ def printPlayerEffects(player:data.Player, mention) -> list:
             try:
                 message = "message"
                 description = "desc"
-                typE = "type"
+                # typE = "type"
+                eid = "eid"
                 status = "stat"
                 duration = "dura"
                 hoursRemaining = "hour"
                 try:
                     description = effect[player.DESC]
                     # typE = effect[player.TYPE]
+                    eid = effect[player.EID]
                     status = effect[player.STAT]
                     duration = effect[player.DURA]
                     hoursRemaining = effect[player.HOUR]
@@ -314,27 +350,88 @@ def printPlayerEffects(player:data.Player, mention) -> list:
                 except Exception as e:
                     print(f"Exception while accessing effect dict:")
                     print(e)
-                print(description)
-                print(typE)
-                print(status)
-                print(duration)
-                print(hoursRemaining)
-                message = "\n".join([f"{mention} has the effect: ",
-                                     f"```{description}```",
-                                     #  f"> Type: {typE}",
-                                     f"> Status: `{status}`",
-                                     f"> Max duration: `{duration}`",
-                                     f"> Hours remaining: `{hoursRemaining}` (about `{minutes}` minutes)"])
-                print(message)
+                
+                # If all is True, print all effects
+                # Otherwise, check that effects are active before printing
+                if all or (status) == config.E_ACTIVE:
+                    print(description)
+                    # print(typE)
+                    print(eid)
+                    print(status)
+                    print(duration)
+                    print(hoursRemaining)
+                    message = "\n".join([f"{mention} has the effect: ",
+                                        f"```{description}```",
+                                        f"> ID: `{eid}`",
+                                        #  f"> Type: {typE}",
+                                        f"> Status: `{status}`",
+                                        f"> Max duration: `{duration}`",
+                                        f"> Hours remaining: `{hoursRemaining}` (about `{minutes}` minutes)"])
+                    print(message)
             except Exception as e:
                 print(f"Exception while gathering {player.pid}'s effects:")
                 print(e)
             else:
-                lines.append(message)
+                if message != 'message':
+                    lines.append(message)
             finally:
                 print(len(lines), end=", ")
+                lines.append("Done")
         print(f"\nReturning {player.pid}'s effects...")
     return lines
+
+# Syntax: -cureeffect @player any-00
+# Future syntax: -cureeffect * any-00
+# Future syntax: -cureeffect @player *
+@bot.command()
+async def cureeffect(ctx, *message):
+    try:
+        args = ctx.message.content.split(" ")
+        while "" in args:
+            args.remove("")
+        eid = args[2]
+    except IndexError as e:
+        print(f"IndexError while getting eid from message '{ctx.message.content}':")
+        print(e)
+        return
+    except Exception as e:
+        print(f"Exception while getting eid from message '{ctx.message.content}':")
+        print(e)
+        return
+    else:
+        for p in ctx.message.mentions:
+            print(f"Curing eid {eid} for player {p.id}...")
+            # player = await getPlayerFromServer(p, "0", bot.servers)
+            # TODO: update to accommodate using actual discord IDs, server IDs
+            player = getPlayerFromServer(str(p.id), str(ctx.guild.id), bot.servers)
+            try:
+                print(f"Fetching discord user {p.id}...")
+                curr = await bot.fetch_user(p.id)
+            except Exception as e:
+                print(f"Exception while fetching discord user from id {p.id}:")
+                print(e)
+            else:
+                try:
+                    if player != None:
+                        print(f"Player: {player} ({player.pid}) {len(player.allEffects.keys())} effects")
+                        try:
+                            print(f"Curing {eid} for player {player.pid}...")
+                            player.cureEffect(eid)
+                        except Exception as e:
+                            print(f"Exception while curing {player.pid}'s effect {eid}:")
+                            print(e)
+                        else:
+                            try:
+                                await ctx.send(f"Cured effect `{eid}` for {curr.mention}!")
+                            except Exception as e:
+                                print(f"Exception while sending {player.pid}'s effect {eid}:")
+                                print(e)
+                    else:
+                        await ctx.send(f"Foundn't player {curr.mention} in server `{ctx.guild.name}`")
+                        return
+                except Exception as e:
+                    print(f"Misc exception while curing {player.pid}'s effect {eid}:")
+                    print(e)
 
 # Syntax: -decrementeffects [amount] [OPTIONAL:minutes]
 # Syntax: -decrementeffects 1           # Decrements by 1 hour
@@ -346,6 +443,8 @@ async def decrementeffects(ctx, *message):
     minutes = False
     try:
         args = ctx.message.content.split(" ")
+        while "" in args:
+            args.remove("")
         amount = float(args[1])
         minutes = "-m" in ctx.message.content.split(" ")
         server = getServer(str(ctx.guild.id), bot.servers)
