@@ -114,16 +114,17 @@ async def addeffect(ctx, *message):
         "perm":1
     }
 
-    # TODO: pull random effect from csv
-    effect = "You have gone insane in your membrane"
-
     for p in ctx.message.mentions:
         print(p)
+
+        # Pull random insanity effect to give to the player
+        effect = pullIsanity(effectType)
+
         duration = 0.0
         try:
             player = getPlayerFromServer(str(p.id), str(ctx.guild.id), bot.servers)
             if player != None:
-                print(f"Adding effect to {player.pid}")
+                print(f"Adding effect {effect['id']} to {player.pid}")
                 sides = effectSides[effectType]
                 mod = effectMods[effectType]
                 multiplier = effectMultipliers[effectType]
@@ -132,27 +133,36 @@ async def addeffect(ctx, *message):
                 # TODO: pull random effects from csv lol
                 player.addEffect(effectType, effect, duration)
                 mentionable = await bot.fetch_user(p.id)
-                await ctx.send(f"{mentionable.mention} now has the following effect: `{effect}` for `{duration}` hours!")
+                await ctx.send(f"{mentionable.mention} now has effect `{effect['id']}`: ```{effect['description']}``` for `{duration}` hours!")
         except Exception as e:
             print(e)
   
 # Helper    
 def pullIsanity(effectType:str) -> dict:
+    # If loading insanities didn't work the first time, try again
+    # Isn't that the definition of insanity, though?
     if len(bot.insanities) == 0:
         bot.insanities = data.loadInsanities(os.path.join(config.wd, config.insanitiesFileName))
+    
+    # Cut the possible insanities (possibilities) down to only include ones applicable to the effectType
     try:
         possibilities = bot.insanities.keys()
-        possibilities = [p for p in possibilities if "any" in p or effectType.lower() in p]
+        # If it's permanent insanity, exclude short-term insanities. Not fun gameplay.
+        # Anything else is fair game.
+        if effectType.lower() == "perm":
+            possibilities = [p for p in possibilities if "short" not in p]
+        
+        # If effectType == short, then only keys containing "short" or "any" are included
+        # Same logic for "long", "indef"
+        else:
+            possibilities = [p for p in possibilities if config.ANYPREFIX in p or effectType.lower() in p]
     except Exception as e:
         print("Exception while pulling insanity:")
         print(e)
     else:
-        return possibilities[d(len(possibilities), -1)]
-    if len(possibilities) == 0:
+        if len(possibilities) > 0:
+            return possibilities[d(len(possibilities), -1)]
         return {"id":None, "description":None}
-    else:
-        pass
-    return
   
 # Helper   
 def d(sides:int, mod:int=0) -> int:
