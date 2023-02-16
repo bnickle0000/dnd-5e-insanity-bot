@@ -49,6 +49,7 @@ class Player:
         self.CUTOFF = 24
         self.DESC = "description"
         self.DURA = "duration"
+        self.EID = "eid"
         self.HOUR = "hoursRemaining"
         self.STAT = "status"
         self.PID = "pid"
@@ -103,6 +104,7 @@ class Player:
             effectSet[effect['id']][self.ABBR] = "ERROR"
         
         # Update remaining fields for the insanity
+        effectSet[effect['id']][self.EID] = effect['id']
         effectSet[effect['id']][self.DESC] = effect['description']
         effectSet[effect['id']][self.DURA] = largerDuration
         effectSet[effect['id']][self.HOUR] = largerRemaining
@@ -110,16 +112,35 @@ class Player:
         effectSet[effect['id']][self.TYPE] = effectType
         return 0
     def cureEffect(self,
-                   description:str # May not uniquely id effect instances, but good enough
+                   eid:str # ID of effect
                    ):
+        cured = 1
         for effectType in self.allEffects:
-            for key in effectType.keys():
-                if key != "perm":
-                    curr = effectType[key]
-                    if curr[self.DESC] == description:
-                        curr[self.HOUR] = 0.0
-                        curr[self.STAT] = config.effectStatus[config.E_CURED]
-        return 0
+            """
+            Search for the effect & cure all instances of it.
+            Doesn't matter if the effect has multiple instances with
+            differing durations.
+            """
+            # for key in effectType.keys():
+            #     if key != "perm":
+            #         curr = effectType[key]
+            #         if curr[self.DESC] == description:
+            #             curr[self.HOUR] = 0.0
+            #             curr[self.STAT] = config.effectStatus[config.E_CURED]
+            if effectType != "perm":
+                try:
+                    effect = self.allEffects[effectType][eid]
+                except KeyError as e:
+                    print(f"KeyError: No {effectType} effect {eid} to cure for player {self.pid}")
+                except Exception as e:
+                    print(f"Exception during cureEffect({eid}) for player {self.pid}")
+                    print(e)
+                else:
+                    print(f"Curing {effectType} effect {eid} for player {self.pid}")
+                    effect[self.STAT] = config.E_CURED
+                    effect[self.HOUR] = 0.0
+                    cured = 0
+        return cured
     def decrementEffects(self,
                          duration:float # Number of hours to decrement by
                          ):
@@ -145,9 +166,9 @@ class Player:
                 curr = effectSet[key]
                 if onlyActive:
                     if curr[self.STAT] == config.E_ACTIVE:
-                        result[curr[self.DESC]] = curr
+                        result[key] = curr
                 else:
-                    result[curr[self.DESC]] = curr
+                    result[key] = curr
         return result
     
     def toJson(self):
