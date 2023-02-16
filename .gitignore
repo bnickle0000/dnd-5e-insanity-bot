@@ -2,3 +2,5 @@
 data/*
 __pycache__/*
 auth.py
+*.csv
+.~lock*
