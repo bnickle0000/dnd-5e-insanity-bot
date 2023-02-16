@@ -18,4 +18,5 @@ effectStatus[E_CURED] = "Cured"
 effectStatus[E_ENDED] = "Ended"
 
 # Insanity Effects
+ANYPREFIX = "any"
 insanitiesFileName = "insanity-effects.json"
