@@ -24,6 +24,7 @@ else:
 
     bot.files = []
     bot.servers = dict()
+    bot.insanities = dict()
 
     """
     # Old pseudocode, just save it to be safe :)
@@ -134,8 +135,27 @@ async def addeffect(ctx, *message):
                 await ctx.send(f"{mentionable.mention} now has the following effect: `{effect}` for `{duration}` hours!")
         except Exception as e:
             print(e)
-    
-def d(sides:int, mod:int=0):
+  
+# Helper    
+def pullIsanity(effectType:str) -> dict:
+    if len(bot.insanities) == 0:
+        bot.insanities = data.loadInsanities(os.path.join(config.wd, config.insanitiesFileName))
+    try:
+        possibilities = bot.insanities.keys()
+        possibilities = [p for p in possibilities if "any" in p or effectType.lower() in p]
+    except Exception as e:
+        print("Exception while pulling insanity:")
+        print(e)
+    else:
+        return possibilities[d(len(possibilities), -1)]
+    if len(possibilities) == 0:
+        return {"id":None, "description":None}
+    else:
+        pass
+    return
+  
+# Helper   
+def d(sides:int, mod:int=0) -> int:
     return randint(1, sides) + mod
 
 @bot.event
@@ -168,11 +188,13 @@ async def setdm(ctx, *message):
     else:
         await ctx.send(f"Could not find server `{ctx.guild.name}` in registered servers")
 
+# Helper 
 def isDm(pid:str, server:data.Server) -> bool:
     print(f"Is {pid} the DM of server {server.sid} ?")
     print(f"Is {pid} == {server.getDMID().getValue()} ?")
     return pid == server.getDMID().getValue()
 
+# Helper 
 def getServer(id:str, servers:dict) -> data.Server:
     result = None
     try:
@@ -217,6 +239,7 @@ async def listEffects(ctx, *message):
         print(e)
         await ctx.send(f"Exception raised see terminal")
     
+# Helper 
 def getPlayerFromServer(pid:str, sid:str, servers:dict()) -> data.Player:
     # TODO: update to accommodate using actual discord IDs ?
     try:
@@ -232,6 +255,7 @@ def getPlayerFromServer(pid:str, sid:str, servers:dict()) -> data.Player:
         print(e)
     return None
 
+# Helper 
 def printPlayerEffects(player:data.Player, mention) -> list:
     # Return a human-readable list of effects the player is experiencing,
     # resembling something like the following:
@@ -338,31 +362,29 @@ def main(argv):
     if len(argv) > 1:
         pass
     try:
-        # (1/4) Read JSON files
-        try:
-            bot.files = data.loadServers(os.path.join(config.wd, config.jsonDir))
-        except Exception as e:
-            print(e)
+        # TODO: move try/excepts out of main, except (4/5)
+        # (1/5) Read JSON files
+        bot.files = data.loadServers(os.path.join(config.wd, config.jsonDir))
 
-        # (2/4) Convert the read JSON files to Servers. Delete files to save memory
+        # (2/5) Convert the read JSON files to Servers. Delete files to save memory
+        bot.servers = data.convertFilesToObjects(bot.files)
         try:
-            bot.servers = data.convertFilesToObjects(bot.files)
             del bot.files
         except Exception as e:
             print(e)
+        
+        # (3/5) Load insanities from JSON
+        bot.insanities = data.loadInsanities(os.path.join(config.wd, config.insanitiesFileName))
 
-        # (3/4) Run the bot
+        # (4/5) Run the bot
         try:
             from auth import token
             bot.run(token)
         except Exception as e:
             print(e)
 
-        # (4/4) Write servers to JSON files
-        try:
-            data.saveAllServers(bot.servers)
-        except Exception as e:
-            print(e)
+        # (5/5) Write servers to JSON files
+        data.saveAllServers(bot.servers)
         print("Closing...")
 
     except Exception as e:

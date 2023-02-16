@@ -248,48 +248,70 @@ data[debug.sid] = debug
     }
 }"""
 
-# (1/4) Read JSON files
+# (1/5) Read JSON files
 def loadServers(basePath:str):
     files = []
-    # servers = dict()
-    # basePath = os.path.join(config.wd, config.jsonDir)
-    with os.scandir(basePath) as iter:
-        for file in iter:
-            fileIsValid = False
-            if ".json" in file.name and "insanity-data" in file.name:
-                with open(file, config.readM) as infile:
-                    files.append(json.load(infile))
-    return files
-    # return servers
+    try:
+        # servers = dict()
+        # basePath = os.path.join(config.wd, config.jsonDir)
+        with os.scandir(basePath) as iter:
+            for file in iter:
+                fileIsValid = False
+                if ".json" in file.name and "insanity-data" in file.name:
+                    with open(file, config.readM) as infile:
+                        files.append(json.load(infile))
+    except Exception as e:
+        print(f"Exception while loading server files:")
+        print(e)
+    finally:
+        return files
+        # return servers
 
-# (2/4) Convert the read JSON files to Servers
+# (2/5) Convert the read JSON files to Servers
 def convertFilesToObjects(files:list):
     servers = dict()
-    for i in range(0, len(files)):
-        try:
-            p = files[i]["players"]
-            players = dict()
-            for key in p.keys():
-                curr = p[key]
-                temp = Player(key,
-                            curr["short"],
-                            curr["long"],
-                            curr["indef"],
-                            curr["perm"]
-                            )
-                curr = temp
-                players[key] = curr
-            # files[i] = data.Server(files[i]["sid"], players, files[i]["dmid"])
-            sid = files[i]["sid"]
-            print(f"Server: {sid} DMID: {files[i]['dmid']}")
-            servers[sid] = Server(files[i]["sid"], players, DMID(files[i]["dmid"]))
-        except Exception as e:
-            print(e)
-    return servers
+    try:
+        for i in range(0, len(files)):
+            try:
+                p = files[i]["players"]
+                players = dict()
+                for key in p.keys():
+                    curr = p[key]
+                    temp = Player(key,
+                                curr["short"],
+                                curr["long"],
+                                curr["indef"],
+                                curr["perm"]
+                                )
+                    curr = temp
+                    players[key] = curr
+                # files[i] = data.Server(files[i]["sid"], players, files[i]["dmid"])
+                sid = files[i]["sid"]
+                print(f"Server: {sid} DMID: {files[i]['dmid']}")
+                servers[sid] = Server(files[i]["sid"], players, DMID(files[i]["dmid"]))
+            except Exception as e:
+                print(e)
+    except Exception as e:
+        print(f"Exception while converting file contents to objects:")
+        print(e)
+    finally:
+        return servers
 
-# discord.py does all the heavy lifting in step (3/4) in main
+# (3/5) Load insanity effects (insanities) from JSON
+def loadInsanities(filename:str) -> dict:
+    results = []
+    try:
+        with open(filename, config.readM) as infile:
+            results = json.load(infile)
+    except Exception as e:
+        print(f"Exception while loading insanities:")
+        print(e)
+    finally:
+        return results
 
-# (4/4) Helper for saveAllServers; also a good option for incremental saving later
+# discord.py does all the heavy lifting in step (4/5) in main
+
+# (5/5) Helper for saveAllServers; also a good option for incremental saving later
 def saveServer(sid:str, server:Server):
     try:
         print(f"Saving {sid}-{config.jsonFile} ...")
@@ -303,21 +325,26 @@ def saveServer(sid:str, server:Server):
             print(e)
     return
 
-# (4/4) Write servers to JSON files
+# (5/5) Write servers to JSON files
 def saveAllServers(data:dict):
-    for sid in data.keys():
-        """try:"""
-        print(sid)
-        if sid != None:
-            saveServer(sid, data[sid])
-            """Deprecated
-            # print(f"Saving {sid}-{config.jsonFile} ...")
-            # with open(os.path.join(config.wd, config.jsonDir, f"{sid}-{config.jsonFile}"), config.writeM) as outfile:
-            #     server = data[sid]
-            #     jsonData = json.dumps(server.toJson(), indent=2)
-            #     outfile.write(jsonData)
-            # print(f"Saved {sid}-{config.jsonFile} !")"""
-        """else:
-            raise Exception(f"Could not get server id for server {sid}")"""
-    print(f"Done")
-    return
+    try:
+        for sid in data.keys():
+            """try:"""
+            print(sid)
+            if sid != None:
+                saveServer(sid, data[sid])
+                """Deprecated
+                # print(f"Saving {sid}-{config.jsonFile} ...")
+                # with open(os.path.join(config.wd, config.jsonDir, f"{sid}-{config.jsonFile}"), config.writeM) as outfile:
+                #     server = data[sid]
+                #     jsonData = json.dumps(server.toJson(), indent=2)
+                #     outfile.write(jsonData)
+                # print(f"Saved {sid}-{config.jsonFile} !")"""
+            """else:
+                raise Exception(f"Could not get server id for server {sid}")"""
+        print(f"Done")
+    except Exception as e:
+            print(f"Exception while saving all servers:")
+            print(e)
+    finally:
+        return
