@@ -16,3 +16,6 @@ E_ENDED = "Ended"
 effectStatus[E_ACTIVE] = "Active"
 effectStatus[E_CURED] = "Cured"
 effectStatus[E_ENDED] = "Ended"
+
+# Insanity Effects
+insanitiesFileName = "insanity-effects.json"
